@@ -7,8 +7,9 @@ on:
 
 jobs:
   prepare:
-    name: "Prepare"
+    name: "Release"
     runs-on: "ubuntu-22.04"
+    if: "contains('refs/heads/main', github.ref)"
 
     permissions:
       contents: "write"
