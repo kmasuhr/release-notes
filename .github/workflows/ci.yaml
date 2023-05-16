@@ -11,8 +11,65 @@ jobs:
     runs-on: "ubuntu-22.04"
 
     permissions:
+      contents: "write"
       id-token: "write"
 
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+
+      - name: Get new version
+        id: get-version
+        run: |
+          #!/bin/bash
+
+          set_version() {
+            echo "New version $1"
+            echo "version=$1" >> $GITHUB_OUTPUT
+          }
+
+          npm install -g semver
+
+          SEMVER_BINARY="$(which semver)" # Known location of semver binary after installation
+          # GIT_RECENT_TAGS=$(git tag --merged HEAD) # Stopped working on new organization
+          GIT_RECENT_TAGS=$(git tag) # Return full list of tags on the current branch
+          GIT_RECENT_TAGS=${GIT_RECENT_TAGS:-'0.0.1-SNAPSHOT.0'} # If there are no tags found, set the starting version
+          CURRENT_VERSION=$($SEMVER_BINARY ${GIT_RECENT_TAGS} | tail -n1) # Sort the tags maching semver schema and take the latest (last element)
+          CURRENT_COMMIT_TAG=$(git tag --points-at HEAD)
+
+          echo "Current version ${CURRENT_VERSION}"
+          echo "Current commit tag |${CURRENT_COMMIT_TAG}|"
+
+          if [ -z "$CURRENT_COMMIT_TAG" ]; then
+            echo ""
+          else
+            set_version "${CURRENT_COMMIT_TAG}"
+            exit 0
+          fi
+
+          BUILD_SOURCEBRANCH=${BUILD_SOURCEBRANCH:-$(git symbolic-ref HEAD)} # Variable available in Azure DevOps; if it's empty, check the current branch manually
+          GIT_COMMIT_SHORT_SHA=$(git rev-parse --short HEAD)
+
+          if [[ ${BUILD_REASON} == "Schedule" ]]; then
+              NEW_VERSION="${CURRENT_VERSION%%-*}-NIGHTLY.${GIT_COMMIT_SHORT_SHA}"
+          # elif [[ "${BUILD_SOURCEBRANCH}" =~ ^refs\/heads\/(main|release).*$ ]]; then
+          elif [[ "${BUILD_SOURCEBRANCH}" =~ ^refs\/heads\/(develop|release).*$ ]]; then
+              NEW_VERSION=$($SEMVER_BINARY -i patch ${CURRENT_VERSION})
+          # elif [[ "${BUILD_SOURCEBRANCH}" =~ ^refs\/heads\/develop.*$ ]]; then
+          #     NEW_VERSION=$($SEMVER_BINARY -i prerelease --preid SNAPSHOT ${CURRENT_VERSION})
+          elif [[ "${BUILD_SOURCEBRANCH}" =~ ^refs\/pull\/.*\/merge.*$ ]]; then
+              NEW_VERSION="${CURRENT_VERSION%%-*}-PR.${GIT_COMMIT_SHORT_SHA}"
+          else
+              NEW_VERSION="${CURRENT_VERSION%%-*}-FEATURE.${GIT_COMMIT_SHORT_SHA}"
+          fi
+
+          set_version $NEW_VERSION
+
+
+      - name: "Create release"
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.get-version.outputs.version }}
+          release_name: v${{ steps.get-version.outputs.version }}
