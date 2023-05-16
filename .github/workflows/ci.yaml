@@ -67,11 +67,18 @@ jobs:
 
           set_version $NEW_VERSION
 
-      - name: Create Release
-        uses: mikepenz/action-gh-release@v0.2.0-a03 #softprops/action-gh-release
+      # Works ok, PR titles and links in release description
+      # - name: Create Release
+      #   uses: mikepenz/action-gh-release@v0.2.0-a03 #softprops/action-gh-release
+      #   with:
+      #     generate_release_notes: true
+      #     tag_name: ${{ steps.get-version.outputs.version }}
+
+      - uses: "marvinpinto/action-automatic-releases@latest"
         with:
-          generate_release_notes: true
-          tag_name: ${{ steps.get-version.outputs.version }}
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          prerelease: false
+          automatic_release_tag: ${{ steps.get-version.outputs.version }}
 
       # - name: "Create release"
       #   uses: actions/create-release@v1
