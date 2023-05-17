@@ -1,9 +1,6 @@
 name: CI
 
-on:
-  push:
-  pull_request_target:
-    types: [labeled]
+on: workflow_dispatch
 
 jobs:
   prepare:
